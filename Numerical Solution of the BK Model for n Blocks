@@ -1,1 +1,108 @@
+# Import libraries
+from mpl_toolkits.mplot3d import Axes3D
+import matplotlib.pyplot as plt
+import numpy as np
 
+# Define parameters
+alpha = 2.5
+v = 0.03
+l = 10
+F0 = 1
+n = 50         #blocks number
+sigma = 0.01
+
+# Define the friction function phi (w) (slip-stick behavior)
+def phi(w):
+    if w <= 0:
+        return 0
+    else:
+        return (F0 - sigma) / (1.0 + w / (1.0 - sigma))
+
+# Define the function f(r,t). Reduces the order of 
+# differential equations
+def f(r, t):
+    U_i = r[:n]      #position values
+    omega_i = r[n:]  #velocity values
+
+    # Empty lists where the integrated values of the position and velocity 
+    # will be stored
+    fU_i = np.empty(n, float)
+    fomega_i = np.empty(n, float)
+
+    fU_i[0] = omega_i[0]
+    s0 = (l ** 2) * (U_i[1] - U_i[0]) - U_i[0]
+    
+    # Check conditions for sliding and adjust omega accordingly
+    # Condition for first block
+    if (omega_i[0] <= -v + v * 0.01 and s0 <= F0):
+        omega_i[0] = -v
+        fomega_i[0] = 0
+    else:
+        fomega_i[0] = s0 - phi(2 * alpha * v + 2 * alpha * omega_i[0])
+    
+    # Check conditions for the internal blocks
+    for j in range(1, n - 1):
+        fU_i[j] = omega_i[j]
+        s = (l ** 2) * (U_i[j + 1] - 2 * U_i[j] + U_i[j - 1]) - U_i[j]
+        
+        if (omega_i[j] <= -v + v * 0.01 and s <= F0):
+            omega_i[j] = -v
+            fomega_i[j] = 0
+        else:
+            fomega_i[j] = s - phi(2 * alpha * v + 2 * alpha * omega_i[j])
+
+    fU_i[n - 1] = omega_i[n - 1]
+    sn = -(l ** 2) * (U_i[n - 1] - U_i[n - 2]) - U_i[n - 1]
+    
+    # Check conditions for the last block
+    if (omega_i[n - 1] <= -v + v * 0.01 and sn <= F0):
+        omega_i[n - 1] = -v
+        fomega_i[n - 1] = 0
+    else:
+        fomega_i[n - 1] = sn - phi(2*alpha * v + 2 * alpha * omega_i[n - 1])
+
+    # return an array with the integrate position and velocity values
+    return np.concatenate([fU_i, fomega_i])
+
+# Defines the time interval tau in which the simulation is run.
+a = 0           # initial value
+b = 50          # final value
+N = 5000        # step number
+h = (b - a) / N # size step
+
+# Create empty matrix to store data
+PV = []                 # list where position and velocity values are stored
+for i in range(2 * n):  # stores empty lists to PV list
+    PV.append([])
+
+tpoints = np.arange(a, b, h)
+
+vi = []                 # list with initial velocity values
+for i in range(n):       
+    vi.append(-v)
+
+# list with initial position values
+pi = np.array([0.72235592, 0.72527066, 0.72073047, 0.72718423, 0.74222829,
+               0.72199864, 0.69734455, 0.66574554, 0.6425, 0.62975995,
+               0.62518657, 0.63009794, 0.6491877, 0.63167216, 0.62262983,
+               0.62694293, 0.63249141, 0.64006295, 0.63722845, 0.63748212,
+               0.64138662, 0.63760384, 0.61265397, 0.59169306, 0.56731753,
+               0.54948587, 0.53332961, 0.52064954, 0.5141297, 0.51591324,
+               0.52028049, 0.5352349, 0.55488192, 0.57301198, 0.57946483,
+               0.59932144, 0.62523277, 0.65973409, 0.68181637, 0.67279208,
+               0.66907526, 0.67654546, 0.68681001, 0.68174304, 0.67244414,
+               0.66579544, 0.66101583, 0.65889264, 0.66595632, 0.66624099])
+
+r=np.concatenate([pi, vi]) # list with initial position and velocity values
+
+# Perform numerical integration
+for t in tpoints:
+    for i in range(2 * n):
+        PV[i].append(r[i])
+    k1 = h * f(r, t)
+    k2 = h * f(r + 0.5 * k1, t + 0.5 * h)
+    k3 = h * f(r + 0.5 * k2, t + 0.5 * h)
+    k4 = h * f(r + k3, t + h)
+    r += (k1 + 2 * k2 + 2 * k3 + k4) / 6
+
+# Plot the data ...
